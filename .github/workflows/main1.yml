@@ -1,0 +1,57 @@
+name: RDP (Cloudflare)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cloudflare-rdp:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Enable Remote Desktop
+        run: |
+          # Enable RDP and disable NLA
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                           -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                           -Name "UserAuthentication" -Value 0 -Force
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      - name: Create RDP User
+        run: |
+          $password = -join ((33..126) | Get-Random -Count 15 | ForEach-Object {[char]$_})
+          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name "rdpuser" -Password $secure -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "rdpuser"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser"
+          echo "USERNAME=rdpuser" >> $env:GITHUB_ENV
+          echo "PASSWORD=$password" >> $env:GITHUB_ENV
+
+      - name: Download Cloudflare Tunnel
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "C:\cloudflared.exe"
+
+      - name: Start Cloudflare Tunnel
+        run: |
+          Start-Process -NoNewWindow -FilePath "C:\cloudflared.exe" -ArgumentList "tunnel --url rdp://localhost:3389"
+          Start-Sleep -Seconds 10
+          Write-Host "Waiting for tunnel to initialize..."
+          Start-Sleep -Seconds 5
+
+      - name: Show Credentials and Instructions
+        run: |
+          Write-Host "`n============================"
+          Write-Host "✅ RDP Connection Details"
+          Write-Host "Username: $env:USERNAME"
+          Write-Host "Password: $env:PASSWORD"
+          Write-Host ""
+          Write-Host "When Cloudflare shows a link like:"
+          Write-Host "➡️  https://randomstring.trycloudflare.com"
+          Write-Host ""
+          Write-Host "Use that link to connect using an RDP app (like Microsoft Remote Desktop)."
+          Write-Host "============================`n"
+          Write-Host "Tunnel running... Keep job active."
+          while ($true) {
+            Start-Sleep -Seconds 300
+          }
