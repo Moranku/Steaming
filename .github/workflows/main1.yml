@@ -1,0 +1,44 @@
+name: Ubuntu 25.04 GNOME Desktop over Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Update system
+        run: |
+          sudo apt update -y
+          sudo apt upgrade -y
+
+      - name: Install GNOME Desktop and RDP server
+        run: |
+          sudo apt install ubuntu-desktop -y
+          sudo apt install xrdp -y
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+
+      - name: Create RDP user
+        run: |
+          sudo useradd -m ubuntuuser
+          echo "ubuntuuser:ubuntu1234" | sudo chpasswd
+          sudo usermod -aG sudo ubuntuuser
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname ubuntu-gnome --ssh
+
+      - name: Show connection info
+        run: |
+          echo "✅ Ubuntu GNOME Desktop is ready!"
+          echo "Find its IP on your Tailscale dashboard (https://login.tailscale.com/admin/machines)"
+          echo "Then connect via RDP:"
+          echo "Username: ubuntuuser"
+          echo "Password: ubuntu1234"
+          echo "Use the Tailscale IP (100.x.x.x)"
+
+      - name: Keep session alive
+        run: sleep 21600  # 6 hours
