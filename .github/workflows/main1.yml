@@ -1,44 +1,41 @@
-name: Ubuntu 25.04 GNOME Desktop over Tailscale
-
+name: Ubuntu 25.04 Desktop over Tailscale
 on:
   workflow_dispatch:
 
 jobs:
-  desktop:
-    runs-on: ubuntu-24.04
+  ubuntu-desktop:
+    runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - name: Update system
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          version: 1.66.0
+          args: "--ssh"
+
+      - name: Install Ubuntu Desktop & XRDP
         run: |
           sudo apt update -y
-          sudo apt upgrade -y
+          sudo apt install ubuntu-desktop-minimal gnome-session-flashback xrdp -y
 
-      - name: Install GNOME Desktop and RDP server
-        run: |
-          sudo apt install ubuntu-desktop -y
-          sudo apt install xrdp -y
+          # Speed optimizations
+          gsettings set org.gnome.desktop.interface enable-animations false || true
+          gsettings set org.gnome.desktop.interface gtk-theme 'Yaru' || true
+          gsettings set org.gnome.desktop.wm.preferences theme 'Yaru' || true
+
           sudo systemctl enable xrdp
           sudo systemctl start xrdp
 
-      - name: Create RDP user
-        run: |
-          sudo useradd -m ubuntuuser
-          echo "ubuntuuser:ubuntu1234" | sudo chpasswd
-          sudo usermod -aG sudo ubuntuuser
-
-      - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTHKEY }} --hostname ubuntu-gnome --ssh
-
       - name: Show connection info
         run: |
-          echo "✅ Ubuntu GNOME Desktop is ready!"
-          echo "Find its IP on your Tailscale dashboard (https://login.tailscale.com/admin/machines)"
-          echo "Then connect via RDP:"
-          echo "Username: ubuntuuser"
-          echo "Password: ubuntu1234"
-          echo "Use the Tailscale IP (100.x.x.x)"
-
-      - name: Keep session alive
-        run: sleep 21600  # 6 hours
+          echo "✅ Ubuntu 25.04 Desktop is ready!"
+          echo "Use Microsoft Remote Desktop or Android RDP app to connect."
+          echo "Tailscale IP:"
+          tailscale ip -4
+          echo "Port: 3389"
+          echo "Login user: runner"
+          echo "Password: <leave empty or set your own if you wish>"
