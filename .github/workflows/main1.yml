@@ -1,12 +1,11 @@
-name: Ubuntu 25.04 Desktop over Tailscale
+name: ubuntu-desktop
 
 on:
   workflow_dispatch:
 
 jobs:
-  ubuntu-desktop:
+  run-desktop:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # Keeps it alive for up to 6 hours (GitHub limit)
 
     steps:
       - name: Checkout repository
@@ -15,34 +14,23 @@ jobs:
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=ubuntu-desktop
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=github-desktop --accept-routes
 
-      - name: Install Ubuntu Desktop (GNOME) and XRDP
+      - name: Install Ubuntu Desktop (GNOME)
         run: |
           sudo apt update
-          sudo apt install -y ubuntu-desktop gnome-terminal xrdp dbus-x11
+          sudo apt install -y ubuntu-desktop gnome-shell xrdp
           sudo systemctl enable xrdp
-          sudo systemctl start xrdp
-          sudo adduser --disabled-password --gecos "" rdpuser
-          echo 'rdpuser:1234' | sudo chpasswd
-          sudo usermod -aG sudo rdpuser
+          echo "Ubuntu Desktop installed."
 
       - name: Show connection info
         run: |
-          echo "✅ Ubuntu 25.04 Desktop is ready!"
-          echo "----------------------------------"
-          echo "User: rdpuser"
-          echo "Pass: 1234"
-          echo "Tailscale IP:"
+          echo "✅ Tailscale IP Address:"
           tailscale ip -4
-          echo "----------------------------------"
-          echo "Keep this job running to stay connected."
 
       - name: Keep Alive
         run: |
           echo "Ubuntu Desktop is running..."
-          while true; do sleep 300; done          echo "Tailscale IP:"
-          tailscale ip -4
-          echo "Port: 3389"
-          echo "Login user: runner"
-          echo "Password: <leave empty or set your own if you wish>"
+          while true; do
+            sleep 60
+          done
