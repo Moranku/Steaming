@@ -1,12 +1,11 @@
-name: ubuntu-desktop
+name: Ubuntu Desktop (GNOME) with Tailscale Access
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-desktop:
+  ubuntu-desktop:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -14,23 +13,29 @@ jobs:
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=github-desktop --accept-routes
+          sudo tailscale up --authkey YOUR_TAILSCALE_AUTH_KEY --hostname github-ubuntu --ssh
+          echo "Tailscale connected."
+          tailscale ip -4
 
-      - name: Install Ubuntu Desktop (GNOME)
+      - name: Install Ubuntu Desktop (GNOME) and XRDP
         run: |
           sudo apt update
-          sudo apt install -y ubuntu-desktop gnome-shell xrdp
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y ubuntu-desktop gnome-shell xrdp
           sudo systemctl enable xrdp
-          echo "Ubuntu Desktop installed."
+          sudo systemctl start xrdp
+          echo "Setting password for runner..."
+          echo "runner:1234" | sudo chpasswd
+          echo "Desktop environment ready."
 
       - name: Show connection info
         run: |
-          echo "✅ Tailscale IP Address:"
+          echo "Use Microsoft Remote Desktop or any RDP client."
+          echo "Username: runner"
+          echo "Password: 1234"
+          echo "Tailscale IP:"
           tailscale ip -4
 
-      - name: Keep Alive
+      - name: Keep Alive (prevent job from ending)
         run: |
-          echo "Ubuntu Desktop is running..."
-          while true; do
-            sleep 60
-          done
+          echo "Ubuntu Desktop is running... Press stop in Actions to end."
+          while true; do sleep 300; done
