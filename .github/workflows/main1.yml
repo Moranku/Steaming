@@ -1,41 +1,46 @@
-name: Android 15 Emulator over Tailscale
+name: Windows-RDP-with-Tailscale-Random-Password
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  android:
-    runs-on: ubuntu-latest
+  rdp:
+    runs-on: windows-latest
+    timeout-minutes: 360
 
     steps:
-    - name: Set up environment
-      run: |
-        sudo apt update
-        sudo apt install -y wget unzip qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager android-sdk android-sdk-platform-tools
+      - name: Download Tailscale
+        run: |
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup.exe -OutFile tailscale-setup.exe
+          Start-Process .\tailscale-setup.exe -Wait
 
-    - name: Install Android SDK & Emulator
-      run: |
-        mkdir -p "$HOME/android-sdk"
-        cd "$HOME/android-sdk"
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmd.zip
-        unzip cmd.zip -d cmdline-tools
-        yes | cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses
-        cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-        cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk "platforms;android-35"
+      - name: Connect Tailscale
+        run: |
+          tailscale up --authkey "${{ secrets.TS_AUTH_KEY }}"
+          tailscale ip -4 > ip.txt
 
-    - name: Create and start emulator
-      run: |
-        $HOME/android-sdk/emulator/emulator -list-avds || true
-        echo "no" | $HOME/android-sdk/cmdline-tools/bin/avdmanager create avd -n android15 -k "system-images;android-35;google_apis;x86_64" --device pixel_6
-        nohup $HOME/android-sdk/emulator/emulator -avd android15 -no-snapshot -no-boot-anim -gpu swiftshader_indirect -noaudio -no-window &
-        sleep 60
+      - name: Generate Random Password
+        id: generate_password
+        run: |
+          $length = 15
+          $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_'
+          $randpw = -join ((1..$length) | ForEach-Object { $chars[(Get-Random -Minimum 0 -Maximum $chars.Length)] })
+          echo "::set-output name=password::$randpw"
+          Write-Host "Random Password: $randpw"
+          
+      - name: Set Random Password for runneradmin
+        run: |
+          $randompw = "${{ steps.generate_password.outputs.password }}"
+          Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText $randompw -Force)
 
-    - name: Install Tailscale
-      run: |
-        curl -fsSL https://tailscale.com/install.sh | sh
-        sudo tailscale up --authkey ${{ secrets.TAILSCALE_KEY }} --hostname android15-github --ssh
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:SystemCurrentControlSetControlTerminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:SystemCurrentControlSetControlTerminal ServerWinStationsRDP-Tcp' -Name "UserAuthentication" -Value 1
 
-    - name: Connection Info
-      run: |
-        echo "✅ Android 15 emulator is running!"
-        echo "👉 Connect via Tailscale SSH or VNC on port 5555 (adb)."
+      - name: Show Credentials and Tailscale IP
+        run: |
+          Write-Host "Username: runneradmin"
+          Write-Host "Password: ${{ steps.generate_password.outputs.password }}"
+          Write-Host "Tailscale IP:"
+          Get-Content ip.txt
