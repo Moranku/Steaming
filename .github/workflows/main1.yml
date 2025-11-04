@@ -1,41 +1,41 @@
-name: Ubuntu Desktop (GNOME) with Tailscale Access
+name: Android 15 Emulator over Tailscale
 
 on:
   workflow_dispatch:
 
 jobs:
-  ubuntu-desktop:
+  android:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Set up environment
+      run: |
+        sudo apt update
+        sudo apt install -y wget unzip qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils virt-manager android-sdk android-sdk-platform-tools
 
-      - name: Install Tailscale
-        run: |
-          curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey YOUR_TAILSCALE_AUTH_KEY --hostname github-ubuntu --ssh
-          echo "Tailscale connected."
-          tailscale ip -4
+    - name: Install Android SDK & Emulator
+      run: |
+        mkdir -p "$HOME/android-sdk"
+        cd "$HOME/android-sdk"
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmd.zip
+        unzip cmd.zip -d cmdline-tools
+        yes | cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk --licenses
+        cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+        cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk "platforms;android-35"
 
-      - name: Install Ubuntu Desktop (GNOME) and XRDP
-        run: |
-          sudo apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y ubuntu-desktop gnome-shell xrdp
-          sudo systemctl enable xrdp
-          sudo systemctl start xrdp
-          echo "Setting password for runner..."
-          echo "runner:1234" | sudo chpasswd
-          echo "Desktop environment ready."
+    - name: Create and start emulator
+      run: |
+        $HOME/android-sdk/emulator/emulator -list-avds || true
+        echo "no" | $HOME/android-sdk/cmdline-tools/bin/avdmanager create avd -n android15 -k "system-images;android-35;google_apis;x86_64" --device pixel_6
+        nohup $HOME/android-sdk/emulator/emulator -avd android15 -no-snapshot -no-boot-anim -gpu swiftshader_indirect -noaudio -no-window &
+        sleep 60
 
-      - name: Show connection info
-        run: |
-          echo "Use Microsoft Remote Desktop or any RDP client."
-          echo "Username: runner"
-          echo "Password: 1234"
-          echo "Tailscale IP:"
-          tailscale ip -4
+    - name: Install Tailscale
+      run: |
+        curl -fsSL https://tailscale.com/install.sh | sh
+        sudo tailscale up --authkey ${{ secrets.TAILSCALE_KEY }} --hostname android15-github --ssh
 
-      - name: Keep Alive (prevent job from ending)
-        run: |
-          echo "Ubuntu Desktop is running... Press stop in Actions to end."
-          while true; do sleep 300; done
+    - name: Connection Info
+      run: |
+        echo "✅ Android 15 emulator is running!"
+        echo "👉 Connect via Tailscale SSH or VNC on port 5555 (adb)."
