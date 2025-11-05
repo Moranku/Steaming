@@ -1,0 +1,50 @@
+name: Windows RDP with Tailscale
+
+on: [workflow_dispatch]
+
+jobs:
+  rdp-tailscale:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      # Install and connect Tailscale
+      - name: Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          version: latest
+
+      # Enable RDP and configure firewall
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp' -name "UserAuthentication" -Value 1
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+      # Generate random password and set to user
+      - name: Set Random Password
+        run: |
+          $securePassword = ConvertTo-SecureString -AsPlainText '${{ secrets.RDP_PASSWORD }}' -Force
+          Set-LocalUser -Name "runneradmin" -Password $securePassword
+
+      # Output username and password
+      - name: Print Credentials
+        run: |
+          echo "Username: runneradmin"
+          echo "Password: $env:RDP_PASSWORD"
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+
+      # Wait for 6 hours (no need for extra sleep, timeout covers it)
+      - name: Wait for connection
+        run: |
+          echo "Waiting for RDP connection. You can connect using Tailscale IP."
+          Get-Date; Start-Sleep -s 21600  # Wait up to 6 hours
+
+      # Cleanup (optional, but not strictly needed as workflow ends)
+      - name: Cleanup
+        run: |
+          echo "Workflow ending."
