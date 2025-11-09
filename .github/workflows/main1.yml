@@ -1,0 +1,48 @@
+name: Ubuntu Desktop (GNOME) via Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ubuntu-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+          sudo systemctl enable --now tailscaled
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=github-ubuntu --ssh
+          echo "✅ Tailscale connected!"
+          tailscale ip -4
+
+      - name: Install Ubuntu Desktop + XRDP
+        run: |
+          sudo apt update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y ubuntu-desktop-minimal xrdp dbus-x11 gnome-shell
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+          echo "runner:1234" | sudo chpasswd
+          sudo adduser runner ssl-cert
+          echo "✅ Ubuntu Desktop + RDP ready"
+
+      - name: Display Connection Info
+        run: |
+          echo "-----------------------------------------"
+          echo "✅ Ubuntu Desktop (GNOME) is now running!"
+          echo "Username: runner"
+          echo "Password: 1234"
+          echo "-----------------------------------------"
+          echo "🌐 Tailscale IP:"
+          tailscale ip -4
+          echo "Connect via RDP to the above IP on port 3389"
+          echo "-----------------------------------------"
+
+      - name: Keep Alive (prevent shutdown)
+        run: |
+          echo "Ubuntu Desktop is running... Press Stop Workflow to end."
+          while true; do sleep 300; done
