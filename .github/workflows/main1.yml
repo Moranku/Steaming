@@ -1,12 +1,12 @@
-name: Ubuntu Desktop (GNOME) via Tailscale
+name: Ubuntu 24.04 Desktop (GNOME) via Tailscale
 
 on:
   workflow_dispatch:
 
 jobs:
   ubuntu-desktop:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
+    runs-on: ubuntu-24.04          # <-- fixed to Ubuntu 24.04 LTS
+    timeout-minutes: 360           # 6 hours max (GitHub limit)
 
     steps:
       - name: Checkout repository
@@ -16,33 +16,33 @@ jobs:
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
           sudo systemctl enable --now tailscaled
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=github-ubuntu --ssh
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=ubuntu24-gnome --ssh
           echo "✅ Tailscale connected!"
           tailscale ip -4
 
-      - name: Install Ubuntu Desktop + XRDP
+      - name: Install Ubuntu Desktop (GNOME) + XRDP
         run: |
           sudo apt update -y
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y ubuntu-desktop-minimal xrdp dbus-x11 gnome-shell
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y ubuntu-desktop-minimal gnome-shell xrdp dbus-x11
           sudo systemctl enable xrdp
           sudo systemctl start xrdp
           echo "runner:1234" | sudo chpasswd
           sudo adduser runner ssl-cert
-          echo "✅ Ubuntu Desktop + RDP ready"
+          echo "✅ Ubuntu Desktop and RDP ready!"
 
       - name: Display Connection Info
         run: |
           echo "-----------------------------------------"
-          echo "✅ Ubuntu Desktop (GNOME) is now running!"
-          echo "Username: runner"
-          echo "Password: 1234"
+          echo "✅ Ubuntu 24.04 GNOME Desktop is running!"
+          echo "Username : runner"
+          echo "Password : 1234"
           echo "-----------------------------------------"
-          echo "🌐 Tailscale IP:"
+          echo "🌐 Tailscale IP →"
           tailscale ip -4
-          echo "Connect via RDP to the above IP on port 3389"
+          echo "Use RDP (client or Android app) → IP:3389"
           echo "-----------------------------------------"
 
-      - name: Keep Alive (prevent shutdown)
+      - name: Keep Alive
         run: |
-          echo "Ubuntu Desktop is running... Press Stop Workflow to end."
+          echo "Ubuntu Desktop is active... Stop the workflow to end."
           while true; do sleep 300; done
